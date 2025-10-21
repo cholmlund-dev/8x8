@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="wwwroot\Pieces\Black R\BishopRB.png" />
+    <None Include="wwwroot\Pieces\Black R\KingRB.png" />
+    <None Include="wwwroot\Pieces\Black R\KnightRB.png" />
+    <None Include="wwwroot\Pieces\Black R\PawnRB.png" />
+    <None Include="wwwroot\Pieces\Black R\QueenRB.png" />
+    <None Include="wwwroot\Pieces\Black R\RookRB.png" />
+    <None Include="wwwroot\Pieces\Black\BishopB.png" />
+    <None Include="wwwroot\Pieces\Black\KingB.png" />
+    <None Include="wwwroot\Pieces\Black\KnightB.png" />
+    <None Include="wwwroot\Pieces\Black\PawnB.png" />
+    <None Include="wwwroot\Pieces\Black\QueenB.png" />
+    <None Include="wwwroot\Pieces\Black\RookB.png" />
+    <None Include="wwwroot\Pieces\White R\BishopRW.png" />
+    <None Include="wwwroot\Pieces\White R\KingRW.png" />
+    <None Include="wwwroot\Pieces\White R\KnightRW.png" />
+    <None Include="wwwroot\Pieces\White R\PawnRW.png" />
+    <None Include="wwwroot\Pieces\White R\QueenRW.png" />
+    <None Include="wwwroot\Pieces\White R\RookRW.png" />
+    <None Include="wwwroot\Pieces\White\BishopW.png" />
+    <None Include="wwwroot\Pieces\White\KingW.png" />
+    <None Include="wwwroot\Pieces\White\KnightW.png" />
+    <None Include="wwwroot\Pieces\White\PawnW.png" />
+    <None Include="wwwroot\Pieces\White\QueenW.png" />
+    <None Include="wwwroot\Pieces\White\RookW.png" />
+  </ItemGroup>
+
+</Project>

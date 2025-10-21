@@ -1,0 +1,257 @@
+﻿@model List<ChessBoardApp.Models.ChessPiece>
+@{
+    Layout = null;
+    var moves = ViewBag.Moves as List<ChessBoardApp.Models.Move>;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Schackbräde</title>
+    <style>
+        body {
+            background-color: #2c2f33;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 40px;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            padding-top: 50px;
+        }
+
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 80px);
+            grid-template-rows: repeat(8, 80px);
+            border: 4px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .square {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .light {
+            background-color: #eeeed2;
+            color: #111;
+        }
+
+        .dark {
+            background-color: #769656;
+            color: #111;
+        }
+
+        .piece {
+            user-select: none;
+            cursor: grab;
+            width: 70px;
+            height: 70px;
+        }
+
+        .square.drag-over {
+            outline: 3px solid yellow;
+        }
+
+        .moves {
+            width: 220px;
+            background: #23272a;
+            border-radius: 8px;
+            padding: 15px;
+            height: 640px;
+            overflow-y: auto;
+            color: #eee;
+        }
+
+            .moves h2 {
+                margin-top: 0;
+                text-align: center;
+            }
+
+        ol {
+            padding-left: 18px;
+        }
+
+        .error {
+            color: #ff8484;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chessboard" id="board">
+        @for (int row = 0; row < 8; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
+                bool isLight = (row + col) % 2 == 0;
+                var piece = Model.FirstOrDefault(p => p.Row == row && p.Col == col);
+
+                <div class="square @(isLight ? "light" : "dark")" data-row="@row" data-col="@col">
+                    @if (piece != null)
+                    {
+                        string folder = piece.Color == "white" ? "White" : "Black";
+                        string fileName = piece.Type switch
+                        {
+                            "pawn" => "Pawn" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            "rook" => "Rook" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            "knight" => "Knight" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            "bishop" => "Bishop" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            "queen" => "Queen" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            "king" => "King" + (piece.Color == "white" ? "W" : "B") + ".png",
+                            _ => ""
+                        };
+                        <img src="~/Pieces/@folder/@fileName" class="piece" draggable="true" />
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <div class="moves">
+        <h2>Drag</h2>
+        <div id="error" class="error" style="display:none;"></div>
+        <ol id="moves">
+            @if (moves != null)
+            {
+                foreach (var m in moves)
+                {
+                    <li>@m.Notation</li>
+                }
+            }
+        </ol>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const movesList = document.getElementById('moves');
+        const errorBox = document.getElementById('error');
+
+        function positionToNotation(row, col) {
+            const file = String.fromCharCode('a'.charCodeAt(0) + col);
+            const rank = 8 - row;
+            return `${file}${rank}`;
+        }
+                let selectedSquare = null;
+        let highlightDots = [];
+
+        function clearHighlights() {
+            highlightDots.forEach(dot => dot.remove());
+            highlightDots = [];
+        }
+
+        function showPossibleMoves(from) {
+            clearHighlights();
+            fetch(`/Chess/GetValidMoves?pos=${from}`)
+                .then(r => r.json())
+                .then(moves => {
+                    moves.forEach(m => {
+                        const col = m.charCodeAt(0) - 'a'.charCodeAt(0);
+                        const row = 8 - parseInt(m[1]);
+                        const square = document.querySelector(`.square[data-row="${row}"][data-col="${col}"]`);
+                        if (square) {
+                            const dot = document.createElement('div');
+                            dot.style.width = '20px';
+                            dot.style.height = '20px';
+                            dot.style.borderRadius = '50%';
+                            dot.style.backgroundColor = 'rgba(0,0,0,0.3)';
+                            dot.style.position = 'absolute';
+                            dot.style.pointerEvents = 'none';
+                            square.style.position = 'relative';
+                            square.appendChild(dot);
+                            highlightDots.push(dot);
+                        }
+                    });
+                });
+        }
+
+
+        function wireEvents() {
+            const pieces = document.querySelectorAll('.piece');
+            const squares = document.querySelectorAll('.square');
+            let draggedPiece = null;
+            let fromSquare = null;
+
+            pieces.forEach(piece => {
+                piece.addEventListener('dragstart', e => {
+                    draggedPiece = e.target;
+                    fromSquare = e.target.parentElement;
+                    setTimeout(() => piece.style.visibility = 'hidden', 0);
+                });
+                        piece.addEventListener('click', e => {
+            const parent = e.target.parentElement;
+            const from = positionToNotation(parseInt(parent.dataset.row), parseInt(parent.dataset.col));
+            showPossibleMoves(from);
+        });
+
+                piece.addEventListener('dragend', e => {
+                    piece.style.visibility = 'visible';
+                    draggedPiece = null;
+                    fromSquare = null;
+                });
+            });
+
+            squares.forEach(square => {
+                square.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    square.classList.add('drag-over');
+                });
+
+                square.addEventListener('dragleave', () => {
+                    square.classList.remove('drag-over');
+                });
+
+                square.addEventListener('drop', e => {
+                    e.preventDefault();
+                    square.classList.remove('drag-over');
+
+                    if (!draggedPiece || !fromSquare) return;
+
+                    // Konvertera dataset till int
+                    const fromRow = parseInt(fromSquare.dataset.row);
+                    const fromCol = parseInt(fromSquare.dataset.col);
+                    const toRow = parseInt(square.dataset.row);
+                    const toCol = parseInt(square.dataset.col);
+
+                    const from = positionToNotation(fromRow, fromCol);
+                    const to = positionToNotation(toRow, toCol);
+
+                    fetch('/Chess/Move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `from=${from}&to=${to}`
+                    })
+                    .then(r => {
+                        if (!r.ok) return r.text().then(t => { throw new Error(t); });
+                        return r.json();
+                    })
+                    .then(moves => {
+                        // Uppdatera draglistan
+                        movesList.innerHTML = moves.map(m => `<li>${m.Notation}</li>`).join('');
+                        errorBox.style.display = 'none';
+                        // Ladda om brädet för att visa nya positioner
+                        location.reload();
+                    })
+                    .catch(err => {
+                        errorBox.textContent = err.message;
+                        errorBox.style.display = 'block';
+                    });
+                });
+            });
+        }
+
+        wireEvents();
+    </script>
+</body>
+</html>
