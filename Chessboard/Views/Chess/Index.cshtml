@@ -39,17 +39,16 @@
             align-items: center;
             font-size: 40px;
             cursor: pointer;
+            position: relative;
             transition: background-color 0.2s ease;
         }
 
         .light {
             background-color: #eeeed2;
-            color: #111;
         }
 
         .dark {
             background-color: #769656;
-            color: #111;
         }
 
         .piece {
@@ -61,6 +60,15 @@
 
         .square.drag-over {
             outline: 3px solid yellow;
+        }
+
+        .dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(0,0,0,0.3);
+            position: absolute;
+            pointer-events: none;
         }
 
         .moves {
@@ -87,6 +95,37 @@
             text-align: center;
             margin-bottom: 8px;
         }
+
+        #promotionModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+        }
+
+        #promotionChoices {
+            background: #444;
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 20px;
+        }
+
+            #promotionChoices img {
+                width: 70px;
+                height: 70px;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+
+                #promotionChoices img:hover {
+                    transform: scale(1.2);
+                }
     </style>
 </head>
 <body>
@@ -133,49 +172,25 @@
         </ol>
     </div>
 
+    <div id="promotionModal">
+        <div id="promotionChoices"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
     <script>
         const board = document.getElementById('board');
         const movesList = document.getElementById('moves');
         const errorBox = document.getElementById('error');
+        const promotionModal = document.getElementById('promotionModal');
+        const promotionChoices = document.getElementById('promotionChoices');
+
+        let pendingPromotion = null;
+        let selectedSquare = null;
+        let validMoves = [];
 
         function positionToNotation(row, col) {
-            const file = String.fromCharCode('a'.charCodeAt(0) + col);
-            const rank = 8 - row;
-            return `${file}${rank}`;
+            return String.fromCharCode('a'.charCodeAt(0) + col) + (8 - row);
         }
-                let selectedSquare = null;
-        let highlightDots = [];
-
-        function clearHighlights() {
-            highlightDots.forEach(dot => dot.remove());
-            highlightDots = [];
-        }
-
-        function showPossibleMoves(from) {
-            clearHighlights();
-            fetch(`/Chess/GetValidMoves?pos=${from}`)
-                .then(r => r.json())
-                .then(moves => {
-                    moves.forEach(m => {
-                        const col = m.charCodeAt(0) - 'a'.charCodeAt(0);
-                        const row = 8 - parseInt(m[1]);
-                        const square = document.querySelector(`.square[data-row="${row}"][data-col="${col}"]`);
-                        if (square) {
-                            const dot = document.createElement('div');
-                            dot.style.width = '20px';
-                            dot.style.height = '20px';
-                            dot.style.borderRadius = '50%';
-                            dot.style.backgroundColor = 'rgba(0,0,0,0.3)';
-                            dot.style.position = 'absolute';
-                            dot.style.pointerEvents = 'none';
-                            square.style.position = 'relative';
-                            square.appendChild(dot);
-                            highlightDots.push(dot);
-                        }
-                    });
-                });
-        }
-
 
         function wireEvents() {
             const pieces = document.querySelectorAll('.piece');
@@ -189,66 +204,94 @@
                     fromSquare = e.target.parentElement;
                     setTimeout(() => piece.style.visibility = 'hidden', 0);
                 });
-                        piece.addEventListener('click', e => {
-            const parent = e.target.parentElement;
-            const from = positionToNotation(parseInt(parent.dataset.row), parseInt(parent.dataset.col));
-            showPossibleMoves(from);
-        });
-
                 piece.addEventListener('dragend', e => {
                     piece.style.visibility = 'visible';
                     draggedPiece = null;
                     fromSquare = null;
                 });
+
+                // Klicka på pjäs för att visa giltiga drag
+                piece.addEventListener('click', async e => {
+                    const parent = e.target.parentElement;
+                    const from = positionToNotation(parseInt(parent.dataset.row), parseInt(parent.dataset.col));
+                    selectedSquare = from;
+                    const res = await fetch(`/Chess/GetValidMoves?pos=${from}`);
+                    validMoves = await res.json();
+                    showDots(validMoves);
+                });
             });
 
             squares.forEach(square => {
-                square.addEventListener('dragover', e => {
+                square.addEventListener('dragover', e => e.preventDefault());
+                square.addEventListener('drop', async e => {
                     e.preventDefault();
-                    square.classList.add('drag-over');
-                });
-
-                square.addEventListener('dragleave', () => {
-                    square.classList.remove('drag-over');
-                });
-
-                square.addEventListener('drop', e => {
-                    e.preventDefault();
-                    square.classList.remove('drag-over');
-
                     if (!draggedPiece || !fromSquare) return;
 
-                    // Konvertera dataset till int
                     const fromRow = parseInt(fromSquare.dataset.row);
                     const fromCol = parseInt(fromSquare.dataset.col);
                     const toRow = parseInt(square.dataset.row);
                     const toCol = parseInt(square.dataset.col);
-
                     const from = positionToNotation(fromRow, fromCol);
                     const to = positionToNotation(toRow, toCol);
 
-                    fetch('/Chess/Move', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: `from=${from}&to=${to}`
-                    })
-                    .then(r => {
-                        if (!r.ok) return r.text().then(t => { throw new Error(t); });
-                        return r.json();
-                    })
-                    .then(moves => {
-                        // Uppdatera draglistan
-                        movesList.innerHTML = moves.map(m => `<li>${m.Notation}</li>`).join('');
-                        errorBox.style.display = 'none';
-                        // Ladda om brädet för att visa nya positioner
-                        location.reload();
-                    })
-                    .catch(err => {
-                        errorBox.textContent = err.message;
-                        errorBox.style.display = 'block';
-                    });
+                    // Pawn promotion
+                    const isPawn = draggedPiece.src.includes("Pawn");
+                    const isPromotionRow = (draggedPiece.src.includes("White") && toRow === 0) ||
+                                           (draggedPiece.src.includes("Black") && toRow === 7);
+                    if (isPawn && isPromotionRow) {
+                        pendingPromotion = { from, to };
+                        showPromotionMenu(draggedPiece.src.includes("White") ? "white" : "black");
+                        return;
+                    }
+
+                    await makeMove(from, to);
                 });
             });
+        }
+
+        function showDots(moves) {
+            document.querySelectorAll('.dot').forEach(d => d.remove());
+            moves.forEach(pos => {
+                const square = document.querySelector(`.square[data-row="${8 - parseInt(pos[1])}"][data-col="${pos.charCodeAt(0) - 97}"]`);
+                if (square) {
+                    const dot = document.createElement('div');
+                    dot.className = 'dot';
+                    square.appendChild(dot);
+                }
+            });
+        }
+
+        function showPromotionMenu(color) {
+            const pieces = ["queen", "rook", "bishop", "knight"];
+            promotionChoices.innerHTML = "";
+            pieces.forEach(p => {
+                const img = document.createElement("img");
+                img.src = `/Pieces/${color.charAt(0).toUpperCase() + color.slice(1)}/${p.charAt(0).toUpperCase() + p.slice(1)}${color === "white" ? "W" : "B"}.png`;
+                img.onclick = () => {
+                    promotionModal.style.display = "none";
+                    promotePawn(p);
+                };
+                promotionChoices.appendChild(img);
+            });
+            promotionModal.style.display = "flex";
+        }
+
+        function promotePawn(newPiece) {
+            fetch('/Chess/Promote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `from=${pendingPromotion.from}&to=${pendingPromotion.to}&newPiece=${newPiece}`
+            }).then(r => r.json())
+              .then(() => location.reload());
+        }
+
+        async function makeMove(from, to) {
+            await fetch('/Chess/Move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `from=${from}&to=${to}`
+            });
+            location.reload();
         }
 
         wireEvents();
